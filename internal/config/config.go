@@ -146,7 +146,7 @@ func GetDefaultConfig() *Config {
 			Level:            "info",
 			Format:           "json",
 			Output:           "file", // 将在运行时替换为实际路径
-			EnableRequestLog: false, // 默认禁用详细请求日志，防止日志爆炸
+			EnableRequestLog: false,  // 默认禁用详细请求日志，防止日志爆炸
 			MaskSensitive:    true,
 		},
 		Proxy: ProxyConfig{
@@ -164,6 +164,14 @@ func getDefaultConfig() *Config {
 
 // loadConfigFile 加载配置文件
 func loadConfigFile(config *Config) error {
+	// 优先使用环境变量指定的配置文件（Wails GUI 依赖该行为）
+	if configPath := os.Getenv("CONFIG_FILE"); configPath != "" {
+		if _, err := os.Stat(configPath); err == nil {
+			return loadFromFile(configPath, config)
+		}
+		return fmt.Errorf("CONFIG_FILE not found: %s", configPath)
+	}
+
 	configPaths := []string{
 		"config.yaml",
 		"config.yml",
@@ -177,11 +185,6 @@ func loadConfigFile(config *Config) error {
 		if _, err := os.Stat(path); err == nil {
 			return loadFromFile(path, config)
 		}
-	}
-
-	// 检查环境变量指定的配置文件
-	if configPath := os.Getenv("CONFIG_FILE"); configPath != "" {
-		return loadFromFile(configPath, config)
 	}
 
 	return fmt.Errorf("no config file found")
@@ -282,7 +285,7 @@ func overrideWithEnv(config *Config) {
 			config.Logging.EnableRequestLog = enabled
 		}
 	}
-	
+
 	// 代理配置
 	if httpProxy := os.Getenv("HTTP_PROXY"); httpProxy != "" {
 		config.Proxy.HTTPProxy = httpProxy

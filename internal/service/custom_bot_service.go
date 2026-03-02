@@ -71,7 +71,7 @@ func (s *customBotService) HandleCustomBotChat(ctx context.Context, req *openai.
 	defer stream.RawBody().Close()
 
 	// 处理非流式响应
-	response, err := monica.CollectMonicaSSEToCompletion(req.Model, stream.RawBody())
+	response, err := monica.CollectMonicaSSEToCompletion(req.Model, stream.RawBody(), s.config)
 	if err != nil {
 		logger.Error("处理Custom Bot响应失败", zap.Error(err))
 		return nil, errors.NewInternalError(err)

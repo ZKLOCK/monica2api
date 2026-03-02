@@ -126,6 +126,19 @@ func NewRequestFailedError(message string, err error) *AppError {
 	}
 }
 
+// NewRequestFailedWithStatus 创建带指定HTTP状态码的请求失败错误
+func NewRequestFailedWithStatus(message string, err error, status int) *AppError {
+	if status < 400 || status > 599 {
+		status = http.StatusBadGateway
+	}
+	return &AppError{
+		Code:    ErrRequestFailed,
+		Message: fmt.Sprintf("请求失败: %s", message),
+		Err:     err,
+		Status:  status,
+	}
+}
+
 // NewModelMappingError 创建模型映射错误
 func NewModelMappingError(model string) *AppError {
 	return &AppError{

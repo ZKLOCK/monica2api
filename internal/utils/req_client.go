@@ -44,7 +44,7 @@ func createSSEClient(cfg *config.Config) *resty.Client {
 		},
 		Proxy: http.ProxyFromEnvironment, // 使用环境变量中的代理设置
 	}
-	
+
 	// 如果配置中有代理设置，则使用配置的代理
 	if cfg.Proxy.HTTPProxy != "" || cfg.Proxy.HTTPSProxy != "" {
 		proxyURL := cfg.Proxy.HTTPProxy
@@ -65,10 +65,18 @@ func createSSEClient(cfg *config.Config) *resty.Client {
 		SetRetryMaxWaitTime(cfg.HTTPClient.RetryMaxWaitTime).
 		SetDoNotParseResponse(true). // SSE需要流式处理
 		SetHeaders(map[string]string{
-			"Content-Type":    "application/json",
-			"User-Agent":      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-			"x-client-locale": "zh_CN",
-			"Accept":          "text/event-stream,application/json",
+			"Content-Type":     "application/json",
+			"Accept":           "text/event-stream,application/json,*/*",
+			"User-Agent":       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+			"Origin":           "https://monica.im",
+			"Referer":          "https://monica.im/",
+			"x-client-id":      "3ff5e948-10e9-4a32-8626-f8560b238a42",
+			"x-client-locale":  "zh_CN",
+			"x-client-type":    "web",
+			"x-client-version": "5.4.3",
+			"x-from-channel":   "NA",
+			"x-product-name":   "Monica",
+			"x-time-zone":      "Asia/Shanghai;-480",
 		}).
 		OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
 			if resp.StatusCode() >= 400 {
@@ -106,7 +114,7 @@ func createDefaultClient(cfg *config.Config) *resty.Client {
 		},
 		Proxy: http.ProxyFromEnvironment, // 使用环境变量中的代理设置
 	}
-	
+
 	// 如果配置中有代理设置，则使用配置的代理
 	if cfg.Proxy.HTTPProxy != "" || cfg.Proxy.HTTPSProxy != "" {
 		proxyURL := cfg.Proxy.HTTPProxy
@@ -152,8 +160,8 @@ type MonicaQuotaResponse struct {
 	Msg  string `json:"msg"`
 	Data struct {
 		ModuleQuotas []struct {
-			Module  string `json:"module"`
-			Quotas  []struct {
+			Module string `json:"module"`
+			Quotas []struct {
 				Scene          string `json:"scene"`
 				ResetFrequency string `json:"reset_frequency"`
 				DefaultQuota   int    `json:"default_quota"`

@@ -38,11 +38,12 @@ func (s *chatService) HandleChatCompletion(ctx context.Context, req *openai.Chat
 	}
 
 	// 日志记录请求
-	// logger.Info("处理聊天请求",
-	// 	zap.String("model", req.Model),
-	// 	zap.Int("message_count", len(req.Messages)),
-	// 	zap.Bool("stream", req.Stream),
-	// )
+	logger.Info("处理聊天请求",
+		zap.String("model", req.Model),
+		zap.Int("message_count", len(req.Messages)),
+		zap.Bool("stream", req.Stream),
+		zap.Bool("enable_request_log", s.config.Logging.EnableRequestLog),
+	)
 
 	// 转换请求格式
 	monicaReq, err := types.ChatGPTToMonica(s.config, *req)
@@ -50,8 +51,16 @@ func (s *chatService) HandleChatCompletion(ctx context.Context, req *openai.Chat
 		logger.Error("转换请求失败", zap.Error(err))
 		return nil, errors.NewInternalError(err)
 	}
+	logger.Info("聊天请求转换完成",
+		zap.String("model", req.Model),
+		zap.Bool("stream", req.Stream),
+	)
 
 	// 调用Monica API
+	logger.Info("开始调用Monica API",
+		zap.String("model", req.Model),
+		zap.Bool("stream", req.Stream),
+	)
 	stream, err := monica.SendMonicaRequest(ctx, s.config, monicaReq)
 	if err != nil {
 		logger.Error("调用Monica API失败", zap.Error(err))
@@ -65,6 +74,9 @@ func (s *chatService) HandleChatCompletion(ctx context.Context, req *openai.Chat
 	if req.Stream {
 		// 这里只返回stream，实际的流处理在handler层
 		// 流式响应时不关闭响应体，让handler层负责关闭
+		logger.Info("Monica API调用成功，进入流式返回",
+			zap.String("model", req.Model),
+		)
 		return stream.RawBody(), nil
 	}
 
@@ -72,11 +84,16 @@ func (s *chatService) HandleChatCompletion(ctx context.Context, req *openai.Chat
 	defer stream.RawBody().Close()
 
 	// 处理非流式响应
-	response, err := monica.CollectMonicaSSEToCompletion(req.Model, stream.RawBody())
+	response, err := monica.CollectMonicaSSEToCompletion(req.Model, stream.RawBody(), s.config)
 	if err != nil {
 		logger.Error("处理Monica响应失败", zap.Error(err))
 		return nil, errors.NewInternalError(err)
 	}
+
+	logger.Info("非流式响应处理完成",
+		zap.String("model", req.Model),
+		zap.Int("content_length", len(response.Choices[0].Message.Content)),
+	)
 
 	return response, nil
 }

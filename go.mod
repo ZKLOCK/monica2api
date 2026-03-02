@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.6
 
 require (
-	github.com/bytedance/sonic v1.14.0
+	github.com/bytedance/sonic v1.13.1
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v4 v4.13.4
@@ -34,7 +34,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
-	github.com/wailsapp/go-webview2 v1.0.19 // indirect
+	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
@@ -60,4 +60,6 @@ require (
 )
 
 // Wails v2 dependencies
-require github.com/wailsapp/wails/v2 v2.10.2
+require github.com/wailsapp/wails/v2 v2.11.0
+
+replace github.com/bytedance/sonic => github.com/bytedance/sonic v1.14.0

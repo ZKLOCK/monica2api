@@ -326,6 +326,11 @@ func modelToBot(model string) string {
 	return model
 }
 
+// ResolveBotUIDForModel 将模型名映射为bot_uid（对外暴露）
+func ResolveBotUIDForModel(model string) string {
+	return modelToBot(model)
+}
+
 // CustomBotRequest 定义custom bot的请求结构
 type CustomBotRequest struct {
 	TaskUID        string        `json:"task_uid"`
@@ -460,7 +465,7 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 				switch content.Type {
 				case "text":
 					msgContext = content.Text
-					
+
 					// 检测文本内容中的文件信息
 					if strings.Contains(msgContext, "[file name]:") && strings.Contains(msgContext, "[file content begin]") {
 						// 提取文件名和文件内容
@@ -476,7 +481,7 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 							msgContext = ""
 						}
 					}
-					
+
 				case "image_url":
 					// 图片处理 (当前支持)
 					attachments = append(attachments, AttachmentRequest{
@@ -516,7 +521,7 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 				// 确定文件来源类型
 				var source FileUploadSource
 				var fileData interface{}
-				
+
 				if strings.HasPrefix(attachment.Data, "data:") {
 					source = SourceBase64
 					fileData = attachment.Data
@@ -790,21 +795,21 @@ func extractFileFromText(text string) (fileName, fileContent string, found bool)
 		return "", "", false
 	}
 	fileName = strings.TrimSpace(fileNameMatch[1])
-	
+
 	// 查找文件内容开始和结束标记
 	contentStart := strings.Index(text, "[file content begin]")
 	if contentStart == -1 {
 		return "", "", false
 	}
 	contentStart += len("[file content begin]")
-	
+
 	contentEnd := strings.Index(text, "[file content end]")
 	if contentEnd == -1 {
 		return "", "", false
 	}
-	
+
 	// 提取文件内容
 	fileContent = strings.TrimSpace(text[contentStart:contentEnd])
-	
+
 	return fileName, fileContent, true
 }

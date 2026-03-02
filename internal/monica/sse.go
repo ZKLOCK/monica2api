@@ -145,6 +145,17 @@ func (p *processMonicaSSE) processSSEStream(handler handleSSEData) error {
 			continue
 		}
 
+		if p.cfg != nil && p.cfg.Logging.EnableRequestLog {
+			rawPreview := string(jsonStr)
+			if len(rawPreview) > 500 {
+				rawPreview = rawPreview[:500] + "..."
+			}
+			logger.Info("Monica原始SSE数据",
+				zap.String("model", p.model),
+				zap.String("raw_data", rawPreview),
+			)
+		}
+
 		// 如果是 [DONE] 则结束
 		if bytes.Equal(jsonStr, []byte(sseFinish)) {
 			if p.cfg != nil && p.cfg.Logging.EnableRequestLog {
@@ -220,7 +231,7 @@ func (p *processMonicaSSE) processSSEStream(handler handleSSEData) error {
 }
 
 // CollectMonicaSSEToCompletion 将 Monica SSE 转换为完整的 ChatCompletion 响应
-func CollectMonicaSSEToCompletion(model string, r io.Reader) (*openai.ChatCompletionResponse, error) {
+func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config) (*openai.ChatCompletionResponse, error) {
 	ctx := context.Background()
 	
 	// 从池中获取字符串构建器
@@ -234,7 +245,7 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader) (*openai.ChatComple
 		reader: bufio.NewReaderSize(r, bufferSize),
 		model:  model,
 		ctx:    ctx,
-		cfg:    nil, // 非流式响应不需要配置
+		cfg:    cfg,
 	}
 
 	// 处理SSE数据
@@ -264,6 +275,11 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader) (*openai.ChatComple
 				}
 				return fullContent
 			}()),
+		)
+	} else if cfg != nil && cfg.Logging.EnableRequestLog {
+		logger.Warn("Monica响应内容为空",
+			zap.String("model", model),
+			zap.String("hint", "请检查上方Monica原始SSE数据日志中的字段是否包含text"),
 		)
 	}
 
