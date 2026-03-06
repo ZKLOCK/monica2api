@@ -140,24 +140,12 @@
         
         <el-form :model="form" label-width="120px" size="large" class="form-large">
         <el-form-item label="Cookie*" required>
-          <div class="cookie-input-container">
-            <el-input
-              v-model="form.monica.cookie"
-              type="textarea"
-              :rows="4"
-              placeholder="请输入Monica登录后的Cookie"
-            />
-            <div class="cookie-helper-buttons">
-              <el-button type="primary" @click="openCookieHelper" size="small">
-                <el-icon><Key /></el-icon>
-                获取助手
-              </el-button>
-              <el-button @click="testCookie" size="small" :loading="testingCookie">
-                <el-icon><Check /></el-icon>
-                测试验证
-              </el-button>
-            </div>
-          </div>
+          <el-input
+            v-model="form.monica.cookie"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入Monica登录后的Cookie"
+          />
         </el-form-item>
         
         <el-form-item label="Bot UID">
@@ -295,27 +283,6 @@
         </el-collapse>
       </div>
     </el-dialog>
-    
-    <!-- Cookie 助手对话框 -->
-    <el-dialog
-      v-model="showCookieHelper"
-      title="Cookie 获取助手"
-      width="800px"
-      class="cookie-helper-dialog"
-    >
-      <div class="cookie-helper-content" v-html="cookieHelperContent"></div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="showCookieHelper = false">关闭</el-button>
-          <el-button type="primary" @click="copyScriptToClipboard">
-            复制脚本
-          </el-button>
-          <el-button type="success" @click="openMonicaLogin">
-            打开登录页
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -324,7 +291,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '@/stores/app'
 import { VideoPlay, VideoPause, Connection, Coin, Check, Link, CopyDocument } from '@element-plus/icons-vue'
-import {GetConfig,UpdateConfig,StartService,StopService,TestConfig,GetServiceStatus,GetQuota,ValidateCookie,OpenMonicaLogin,GetCookieScript,GetCookieGuide,CheckCookieExpiry,FormatCookieForDisplay,TestMonicaConnection} from '../../wailsjs/wailsjs/go/main/WailsApp.js'
+import {GetConfig,UpdateConfig,StartService,StopService,TestConfig,GetServiceStatus,GetQuota} from '../../wailsjs/wailsjs/go/main/WailsApp.js'
 const appStore = useAppStore()
 
 const form = reactive({
@@ -353,11 +320,6 @@ const showTestResults = ref(false)
 const testResults = ref([])
 const quotaInfo = ref({})
 const activeCollapse = ref([])
-
-// Cookie 助手相关
-const testingCookie = ref(false)
-const showCookieHelper = ref(false)
-const cookieHelperContent = ref('')
 
 onMounted(async () => {
   await loadConfig()
@@ -561,151 +523,6 @@ async function copyToClipboard(text) {
     ElMessage.error('复制失败，请手动复制')
   }
 }
-
-// Cookie 助手相关方法
-async function openCookieHelper() {
-  try {
-    // 获取 Cookie 获取指南
-    const guide = await GetCookieGuide()
-    
-    // 创建对话框内容
-    let content = `<h3>${guide.title}</h3>`
-    content += `<p>${guide.description}</p>`
-    
-    // 添加步骤
-    content += '<h4>操作步骤：</h4><ol>'
-    guide.steps.forEach(step => {
-      content += `<li><strong>${step.title}:</strong> ${step.detail}</li>`
-    })
-    content += '</ol>'
-    
-    // 添加提示
-    if (guide.tips && guide.tips.length > 0) {
-      content += '<h4>温馨提示：</h4><ul>'
-      guide.tips.forEach(tip => {
-        content += `<li>${tip}</li>`
-      })
-      content += '</ul>'
-    }
-    
-    // 添加警告
-    if (guide.warnings && guide.warnings.length > 0) {
-      content += '<h4>安全警告：</h4><ul style="color: #f56c6c;">'
-      guide.warnings.forEach(warning => {
-        content += `<li>${warning}</li>`
-      })
-      content += '</ul>'
-    }
-    
-    // 添加脚本部分
-    const script = await GetCookieScript()
-    content += '<h4>复制脚本：</h4>'
-    content += `<pre style="background: #f5f7fa; padding: 10px; border-radius: 4px; overflow: auto;">${script}</pre>`
-    content += '<p>将上述脚本复制到浏览器控制台运行即可自动复制 Cookie。</p>'
-    
-    // 添加操作按钮
-    content += '<div style="margin-top: 20px; display: flex; gap: 10px;">'
-    content += '<button onclick="copyScriptToClipboard()" style="padding: 8px 16px; background: #409eff; color: white; border: none; border-radius: 4px; cursor: pointer;">复制脚本</button>'
-    content += '<button onclick="openMonicaLogin()" style="padding: 8px 16px; background: #67c23a; color: white; border: none; border-radius: 4px; cursor: pointer;">打开登录页</button>'
-    content += '</div>'
-    
-    cookieHelperContent.value = content
-    showCookieHelper.value = true
-    
-  } catch (error) {
-    ElMessage.error('获取 Cookie 助手信息失败: ' + error.message)
-  }
-}
-
-async function testCookie() {
-  if (!form.monica.cookie) {
-    ElMessage.warning('请先输入 Cookie')
-    return
-  }
-  
-  testingCookie.value = true
-  try {
-    const result = await ValidateCookie(form.monica.cookie)
-    
-    if (result.is_valid) {
-      ElMessage.success(result.message)
-      
-      // 如果验证成功，可以更新一些显示信息
-      if (result.user_email) {
-        ElMessage.info(`用户: ${result.user_email}`)
-      }
-    } else {
-      ElMessage.error(result.message)
-      
-      // 如果 Cookie 可能过期，提供修复建议
-      if (result.message.includes('过期') || result.message.includes('无效')) {
-        ElMessageBox.confirm(
-          'Cookie 可能已过期，是否打开 Monica 登录页面重新获取？',
-          'Cookie 过期提示',
-          {
-            confirmButtonText: '打开登录页',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
-        ).then(() => {
-          openMonicaLogin()
-        })
-      }
-    }
-  } catch (error) {
-    ElMessage.error('Cookie 验证失败: ' + error.message)
-  } finally {
-    testingCookie.value = false
-  }
-}
-
-async function openMonicaLogin() {
-  try {
-    const result = await OpenMonicaLogin()
-    if (result && result.success) {
-      ElMessage.success('已打开 Monica 登录页面')
-    } else {
-      ElMessage.info('正在打开 Monica 登录页面...')
-    }
-  } catch (error) {
-    ElMessage.error('打开登录页面失败: ' + error.message)
-  }
-}
-
-async function copyScriptToClipboard() {
-  try {
-    const script = await GetCookieScript()
-    await navigator.clipboard.writeText(script)
-    ElMessage.success('脚本已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制脚本失败: ' + error.message)
-  }
-}
-
-// 检查 Cookie 是否可能过期
-async function checkCookieExpiry() {
-  if (!form.monica.cookie) {
-    return
-  }
-  
-  try {
-    const result = await CheckCookieExpiry(form.monica.cookie)
-    if (result.maybe_expired) {
-      ElMessage.warning(`Cookie 可能已过期: ${result.reason}`)
-    }
-  } catch (error) {
-    // 忽略检查错误
-  }
-}
-
-// 在组件挂载时检查 Cookie
-onMounted(async () => {
-  await loadConfig()
-  // 延迟检查 Cookie 过期
-  setTimeout(() => {
-    checkCookieExpiry()
-  }, 1000)
-})
 </script>
 
 <style scoped>
@@ -975,32 +792,5 @@ onMounted(async () => {
   .status-row {
     grid-template-columns: 1fr;
   }
-}
-
-/* Cookie 助手样式 */
-.cookie-input-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.cookie-helper-buttons {
-  display: flex;
-  gap: var(--spacing-sm);
-  justify-content: flex-end;
-}
-
-.cookie-helper-buttons .el-button {
-  flex-shrink: 0;
-}
-
-/* Cookie 助手对话框样式 */
-.cookie-helper-dialog {
-  max-width: 800px;
-}
-
-.cookie-helper-content {
-  max-height: 70vh;
-  overflow-y: auto;
 }
 </style>

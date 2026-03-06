@@ -65,18 +65,27 @@ func createSSEClient(cfg *config.Config) *resty.Client {
 		SetRetryMaxWaitTime(cfg.HTTPClient.RetryMaxWaitTime).
 		SetDoNotParseResponse(true). // SSE需要流式处理
 		SetHeaders(map[string]string{
-			"Content-Type":     "application/json",
-			"Accept":           "text/event-stream,application/json,*/*",
-			"User-Agent":       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-			"Origin":           "https://monica.im",
-			"Referer":          "https://monica.im/",
-			"x-client-id":      "3ff5e948-10e9-4a32-8626-f8560b238a42",
-			"x-client-locale":  "zh_CN",
-			"x-client-type":    "web",
-			"x-client-version": "5.4.3",
-			"x-from-channel":   "NA",
-			"x-product-name":   "Monica",
-			"x-time-zone":      "Asia/Shanghai;-480",
+			"Content-Type":       "application/json",
+			"Accept":             "text/event-stream,application/json,*/*",
+			"Accept-Language":    "zh-CN,zh;q=0.9,en;q=0.8",
+			"Priority":           "u=1, i",
+			"Sec-CH-UA":          "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"145\", \"Chromium\";v=\"145\"",
+			"Sec-CH-UA-Mobile":   "?0",
+			"Sec-CH-UA-Platform": "\"macOS\"",
+			"Sec-Fetch-Dest":     "empty",
+			"Sec-Fetch-Mode":     "cors",
+			"Sec-Fetch-Site":     "same-site",
+			"User-Agent":         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+			"Origin":             "https://monica.im",
+			"Referer":            "https://monica.im/",
+			"x-client-id":        "986e8dfc-092d-451d-9109-5eb471e6edcc",
+			"x-client-locale":    "zh_CN",
+			"x-client-type":      "web",
+			"x-client-version":   "5.4.3",
+			"x-from-channel":     "NA",
+			"x-product-name":     "Monica",
+			"x-time-zone":        "Asia/Shanghai;-480",
+			"DNT":                "1",
 		}).
 		OnAfterResponse(func(c *resty.Client, resp *resty.Response) error {
 			if resp.StatusCode() >= 400 {
@@ -211,7 +220,7 @@ func GetMonicaQuota(cfg *config.Config) (*MonicaQuotaResponse, error) {
 
 	// 设置Cookie
 	if cfg.Monica.Cookie != "" {
-		client.SetHeader("Cookie", cfg.Monica.Cookie)
+		client.SetHeader("cookie", CleanCookie(cfg.Monica.Cookie))
 	}
 
 	// 准备请求数据

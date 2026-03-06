@@ -446,7 +446,7 @@ func (a *WailsApp) TestConfig() ([]WailsTestResult, error) {
 		})
 
 	if cfg.Monica.Cookie != "" {
-		client.SetHeader("Cookie", cfg.Monica.Cookie)
+		client.SetHeader("cookie", utils.CleanCookie(cfg.Monica.Cookie))
 	}
 
 	// 测试结果
@@ -553,6 +553,89 @@ func (a *WailsApp) GetQuota() QuotaInfo {
 	return QuotaInfo{
 		GeniusBot: geniusBotQuota,
 		Credits:   creditsQuota,
+	}
+}
+
+// ValidateCookie 验证 Monica Cookie 是否有效
+func (a *WailsApp) ValidateCookie(cookie string) map[string]interface{} {
+	cfg := a.configManager.GetConfig()
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	
+	result, err := utils.ValidateMonicaCookie(ctx, cfg, cookie)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("验证失败：%v", err),
+		}
+	}
+	
+	return map[string]interface{}{
+		"success":    true,
+		"is_valid":   result.IsValid,
+		"message":    result.Message,
+		"user_email": result.UserEmail,
+		"expires_at": result.ExpiresAt,
+	}
+}
+
+// OpenMonicaLogin 打开 Monica 登录页面
+func (a *WailsApp) OpenMonicaLogin() map[string]interface{} {
+	err := utils.OpenMonicaLogin()
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": fmt.Sprintf("打开浏览器失败：%v", err),
+		}
+	}
+	
+	return map[string]interface{}{
+		"success": true,
+		"message": "已在浏览器中打开 Monica 登录页面",
+	}
+}
+
+// GetCookieScript 获取复制 Cookie 的 JavaScript 脚本
+func (a *WailsApp) GetCookieScript() string {
+	return utils.GetCookieScript()
+}
+
+// GetCookieGuide 获取 Cookie 获取指南
+func (a *WailsApp) GetCookieGuide() map[string]interface{} {
+	return utils.GetCookieGuide()
+}
+
+// CheckCookieExpiry 检查 Cookie 是否可能过期
+func (a *WailsApp) CheckCookieExpiry(cookie string) map[string]interface{} {
+	maybeExpired, reason := utils.CheckCookieExpiry(cookie)
+	
+	return map[string]interface{}{
+		"maybe_expired": maybeExpired,
+		"reason":        reason,
+	}
+}
+
+// FormatCookieForDisplay 格式化 Cookie 用于显示（脱敏）
+func (a *WailsApp) FormatCookieForDisplay(cookie string) string {
+	return utils.FormatCookieForDisplay(cookie)
+}
+
+// TestMonicaConnection 测试与 Monica API 的连接
+func (a *WailsApp) TestMonicaConnection() map[string]interface{} {
+	cfg := a.configManager.GetConfig()
+	
+	err := utils.TestMonicaConnection(cfg)
+	if err != nil {
+		return map[string]interface{}{
+			"success": false,
+			"message": err.Error(),
+		}
+	}
+	
+	return map[string]interface{}{
+		"success": true,
+		"message": "Monica API 连接正常",
 	}
 }
 

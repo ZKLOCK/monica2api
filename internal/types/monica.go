@@ -131,23 +131,30 @@ type MessageContent struct {
 
 // MonicaRequest 为 Monica 自定义 AI 的请求格式
 type MonicaRequest struct {
-	TaskUID  string    `json:"task_uid"`
-	BotUID   string    `json:"bot_uid"`
-	Data     DataField `json:"data"`
-	Language string    `json:"language"`
-	TaskType string    `json:"task_type"`
-	ToolData ToolData  `json:"tool_data"`
+	TaskUID        string    `json:"task_uid"`
+	BotUID         string    `json:"bot_uid"`
+	Data           DataField `json:"data"`
+	Language       string    `json:"language"`
+	Locale         string    `json:"locale,omitempty"`
+	TaskType       string    `json:"task_type"`
+	ToolData       ToolData  `json:"tool_data"`
+	AIRespLanguage string    `json:"ai_resp_language,omitempty"`
 }
 
 // DataField 在 Monica 的 body 中
 type DataField struct {
-	ConversationID  string `json:"conversation_id"`
-	PreParentItemID string `json:"pre_parent_item_id"`
-	Items           []Item `json:"items"`
-	TriggerBy       string `json:"trigger_by"`
-	UseModel        string `json:"use_model,omitempty"`
-	IsIncognito     bool   `json:"is_incognito"`
-	UseNewMemory    bool   `json:"use_new_memory"`
+	ConversationID      string `json:"conversation_id"`
+	PreGeneratedReplyID string `json:"pre_generated_reply_id,omitempty"`
+	PreParentItemID     string `json:"pre_parent_item_id"`
+	Items               []Item `json:"items"`
+	Origin              string `json:"origin,omitempty"`
+	OriginPageTitle     string `json:"origin_page_title,omitempty"`
+	TriggerBy           string `json:"trigger_by"`
+	UseModel            string `json:"use_model,omitempty"`
+	KnowledgeSource     string `json:"knowledge_source,omitempty"`
+	IsIncognito         bool   `json:"is_incognito"`
+	UseNewMemory        bool   `json:"use_new_memory"`
+	UseMemorySuggestion bool   `json:"use_memory_suggestion,omitempty"`
 }
 
 type Item struct {
@@ -612,21 +619,30 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 		preItemID = itemID
 	}
 
-	// 构建请求
+	// 构建请求（尽量对齐网页端成功请求结构）
+	preGeneratedReplyID := fmt.Sprintf("msg:%s", uuid.New().String())
+	mappedBotUID := modelToBot(chatReq.Model)
 	mReq := &MonicaRequest{
 		TaskUID: fmt.Sprintf("task:%s", uuid.New().String()),
-		BotUID:  modelToBot(chatReq.Model),
+		BotUID:  mappedBotUID,
 		Data: DataField{
-			ConversationID:  conversationID,
-			Items:           items,
-			PreParentItemID: preItemID,
-			TriggerBy:       "auto",
-			IsIncognito:     true,
-			UseModel:        "", //TODO 好像写啥都没影响
-			UseNewMemory:    false,
+			ConversationID:      conversationID,
+			PreGeneratedReplyID: preGeneratedReplyID,
+			Items:               items,
+			PreParentItemID:     preItemID,
+			Origin:              fmt.Sprintf("https://monica.im/home/chat/%s/%s", chatReq.Model, mappedBotUID),
+			OriginPageTitle:     "模型介绍 - Monica",
+			TriggerBy:           "auto",
+			UseModel:            chatReq.Model,
+			KnowledgeSource:     "web",
+			IsIncognito:         false,
+			UseNewMemory:        true,
+			UseMemorySuggestion: true,
 		},
-		Language: "auto",
-		TaskType: "chat",
+		Language:       "auto",
+		Locale:         "zh_CN",
+		TaskType:       "chat",
+		AIRespLanguage: "Chinese (Simplified)",
 	}
 
 	// indent, err := json.MarshalIndent(mReq, "", "  ")
