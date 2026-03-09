@@ -11,6 +11,7 @@ import (
 	"monica-proxy/internal/service"
 	"monica-proxy/internal/types"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sashabaranov/go-openai"
@@ -64,6 +65,17 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 		var result interface{}
 		var err error
 
+		// 获取 User-Agent 来判断客户端类型
+		userAgent := c.Request().UserAgent()
+		isOpenClaw := strings.Contains(strings.ToLower(userAgent), "openclaw")
+		
+		// 记录客户端信息
+		logger.Info("客户端请求",
+			zap.String("user_agent", userAgent),
+			zap.Bool("is_openclaw", isOpenClaw),
+			zap.Bool("request_stream", req.Stream),
+		)
+
 		// 检查是否启用了 Custom Bot 模式
 		if cfg.Monica.EnableCustomBotMode {
 			// 使用 Custom Bot Service 处理请求
@@ -77,8 +89,18 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			return err
 		}
 
-		// 根据请求参数决定响应方式
-		if req.Stream {
+		// 根据客户端类型和请求参数决定响应方式
+		// 如果是 OpenClaw，强制使用非流式 JSON 响应
+		// 否则，按照请求的 stream 参数处理
+		shouldStream := req.Stream && !isOpenClaw
+		
+		logger.Info("响应方式决策",
+			zap.Bool("original_stream", req.Stream),
+			zap.Bool("is_openclaw", isOpenClaw),
+			zap.Bool("final_stream", shouldStream),
+		)
+
+		if shouldStream {
 			// 对于流式请求，result是一个io.ReadCloser
 			rawBody, ok := result.(io.Reader)
 			if !ok {
