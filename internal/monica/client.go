@@ -49,7 +49,7 @@ func SendMonicaRequest(ctx context.Context, cfg *config.Config, mReq *types.Moni
 	// 发起请求
 	resp, err := utils.RestySSEClient.R().
 		SetContext(ctx).
-		SetHeader("cookie", cfg.Monica.Cookie).
+		SetHeader("cookie", utils.CleanCookie(cfg.Monica.Cookie)).
 		SetBody(mReq).
 		Post(types.BotChatURL)
 
@@ -202,7 +202,7 @@ func SendCustomBotRequest(ctx context.Context, cfg *config.Config, customBotReq 
 	// 发起请求
 	resp, err := utils.RestySSEClient.R().
 		SetContext(ctx).
-		SetHeader("cookie", cfg.Monica.Cookie).
+		SetHeader("cookie", utils.CleanCookie(cfg.Monica.Cookie)).
 		SetBody(customBotReq).
 		Post(types.CustomBotChatURL)
 
@@ -339,7 +339,7 @@ func retryPreviewChat(ctx context.Context, cfg *config.Config, mReq *types.Monic
 
 	resp, err := utils.RestySSEClient.R().
 		SetContext(ctx).
-		SetHeader("cookie", cfg.Monica.Cookie).
+		SetHeader("cookie", utils.CleanCookie(cfg.Monica.Cookie)).
 		SetBody(fallbackReq).
 		Post(types.CustomBotChatURL)
 	if err != nil {
