@@ -459,8 +459,8 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 	preItemID := defaultItem.ItemID
 
 	for _, msg := range chatReq.Messages {
-		if msg.Role != "user" {
-			// 只处理用户消息，避免assistant/tool历史污染
+		if msg.Role == "system" {
+			// monica不支持设置prompt，所以直接跳过
 			continue
 		}
 		var msgContext string
@@ -470,8 +470,8 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 		if len(msg.MultiContent) > 0 {
 			for _, content := range msg.MultiContent {
 				switch content.Type {
-				case "text", "input_text":
-					msgContext += content.Text
+				case "text":
+					msgContext = content.Text
 
 					// 检测文本内容中的文件信息
 					if strings.Contains(msgContext, "[file name]:") && strings.Contains(msgContext, "[file content begin]") {
@@ -601,25 +601,11 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 				IsIncognito: true,
 			}
 		} else {
-			finalContent := msg.Content
-			if finalContent == "" && msgContext != "" {
-				finalContent = msgContext
-			}
 			content = ItemContent{
 				Type:        "text",
-				Content:     finalContent,
+				Content:     msg.Content,
 				IsIncognito: true,
 			}
-		}
-
-		if strings.TrimSpace(content.Content) == "" && len(content.FileInfos) == 0 {
-			logger.Warn("检测到空消息内容，可能是content结构解析异常",
-				zap.String("role", msg.Role),
-				zap.Int("multi_content_len", len(msg.MultiContent)),
-				zap.Int("attachments_len", len(attachments)),
-				zap.String("model", chatReq.Model),
-			)
-			return nil, fmt.Errorf("empty message content after normalization")
 		}
 
 		item := Item{
@@ -659,6 +645,12 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 		AIRespLanguage: "Chinese (Simplified)",
 	}
 
+	// indent, err := json.MarshalIndent(mReq, "", "  ")
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// log.Printf("send: \n%s\n", indent)
+
 	return mReq, nil
 }
 
@@ -686,8 +678,9 @@ func ChatGPTToCustomBot(cfg *config.Config, chatReq openai.ChatCompletionRequest
 	var systemPrompt string
 	// 转换消息
 	for _, msg := range chatReq.Messages {
-		if msg.Role != "user" {
-			// 只处理用户消息，避免assistant/tool历史污染
+		if msg.Role == "system" {
+			// 将system消息作为prompt
+			systemPrompt = msg.Content
 			continue
 		}
 
@@ -696,8 +689,8 @@ func ChatGPTToCustomBot(cfg *config.Config, chatReq openai.ChatCompletionRequest
 		if len(msg.MultiContent) > 0 {
 			for _, content := range msg.MultiContent {
 				switch content.Type {
-				case "text", "input_text":
-					msgContext += content.Text
+				case "text":
+					msgContext = content.Text
 				case "image_url":
 					imgUrl = append(imgUrl, content.ImageURL)
 				}
@@ -745,13 +738,9 @@ func ChatGPTToCustomBot(cfg *config.Config, chatReq openai.ChatCompletionRequest
 				IsIncognito: false,
 			}
 		} else {
-			finalContent := msg.Content
-			if finalContent == "" && msgContext != "" {
-				finalContent = msgContext
-			}
 			content = ItemContent{
 				Type:        "text",
-				Content:     finalContent,
+				Content:     msg.Content,
 				IsIncognito: false,
 			}
 		}
