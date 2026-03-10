@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"monica-proxy/internal/config"
 	"monica-proxy/internal/errors"
 	"monica-proxy/internal/logger"
@@ -90,9 +91,29 @@ func (s *chatService) HandleChatCompletion(ctx context.Context, req *openai.Chat
 		return nil, errors.NewInternalError(err)
 	}
 
+	// 添加防御性检查
+	if response == nil {
+		logger.Error("Monica响应为空")
+		return nil, errors.NewInternalError(fmt.Errorf("response is nil"))
+	}
+	
+	if response.Choices == nil || len(response.Choices) == 0 {
+		logger.Error("Monica响应中Choices为空",
+			zap.String("model", req.Model),
+			zap.Any("response", response),
+		)
+		return nil, errors.NewInternalError(fmt.Errorf("choices is empty"))
+	}
+	
+	contentLength := 0
+	if len(response.Choices) > 0 && response.Choices[0].Message.Content != "" {
+		contentLength = len(response.Choices[0].Message.Content)
+	}
+
 	logger.Info("非流式响应处理完成",
 		zap.String("model", req.Model),
-		zap.Int("content_length", len(response.Choices[0].Message.Content)),
+		zap.Int("content_length", contentLength),
+		zap.Int("choices_count", len(response.Choices)),
 	)
 
 	return response, nil
