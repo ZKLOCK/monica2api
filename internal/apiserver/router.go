@@ -1,6 +1,8 @@
 package apiserver
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"monica-proxy/internal/config"
@@ -53,12 +55,88 @@ func RegisterRoutes(e *echo.Echo, cfg *config.Config) {
 	e.POST("/v1/chat/custom-bot", createCustomBotHandler(customBotService, cfg))
 }
 
+// extractUserTextFromRawBody 从原始JSON里提取user内容，支持content为string或数组
+func extractUserTextFromRawBody(raw []byte) string {
+	var payload struct {
+		Messages []struct {
+			Role    string          `json:"role"`
+			Content json.RawMessage `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return ""
+	}
+	for _, msg := range payload.Messages {
+		if msg.Role != "user" {
+			continue
+		}
+		if len(msg.Content) == 0 {
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(msg.Content, &s); err == nil {
+			if strings.TrimSpace(s) != "" {
+				return s
+			}
+		}
+		var parts []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(msg.Content, &parts); err == nil {
+			var b strings.Builder
+			for _, p := range parts {
+				if p.Type == "text" || p.Type == "input_text" {
+					b.WriteString(p.Text)
+				}
+			}
+			if strings.TrimSpace(b.String()) != "" {
+				return b.String()
+			}
+		}
+	}
+	return ""
+}
+
 // createChatCompletionHandler 创建聊天完成处理器
 func createChatCompletionHandler(chatService service.ChatService, customBotService service.CustomBotService, cfg *config.Config) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		rawBody, _ := io.ReadAll(c.Request().Body)
+		c.Request().Body = io.NopCloser(bytes.NewReader(rawBody))
 		var req openai.ChatCompletionRequest
 		if err := c.Bind(&req); err != nil {
 			return errors.NewBadRequestError("无效的请求数据", err)
+		}
+
+		if len(req.Messages) == 0 {
+			return errors.NewEmptyMessageError()
+		}
+
+		hasUserContent := false
+		for _, msg := range req.Messages {
+			if msg.Role != "user" {
+				continue
+			}
+			if msg.Content == "" && len(msg.MultiContent) == 0 {
+				logger.Warn("请求体存在空消息content，疑似上游丢失内容",
+					zap.String("model", req.Model),
+					zap.Int("message_count", len(req.Messages)),
+				)
+				continue
+			}
+			hasUserContent = true
+		}
+		if !hasUserContent {
+			if extracted := extractUserTextFromRawBody(rawBody); extracted != "" {
+				req.Messages = []openai.ChatCompletionMessage{{
+					Role:    "user",
+					Content: extracted,
+				}}
+				hasUserContent = true
+			}
+		}
+		if !hasUserContent {
+			return errors.NewEmptyMessageError()
 		}
 
 		ctx := c.Request().Context()
@@ -68,7 +146,7 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 		// 获取 User-Agent 来判断客户端类型
 		userAgent := c.Request().UserAgent()
 		isOpenClaw := strings.Contains(strings.ToLower(userAgent), "openclaw")
-		
+
 		// 记录客户端信息
 		logger.Info("客户端请求",
 			zap.String("user_agent", userAgent),
@@ -93,7 +171,7 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 		// 如果是 OpenClaw，强制使用非流式 JSON 响应
 		// 否则，按照请求的 stream 参数处理
 		shouldStream := req.Stream && !isOpenClaw
-		
+
 		logger.Info("响应方式决策",
 			zap.Bool("original_stream", req.Stream),
 			zap.Bool("is_openclaw", isOpenClaw),
@@ -190,9 +268,40 @@ func createCustomBotHandler(service service.CustomBotService, cfg *config.Config
 			}
 		}
 
+		rawBody, _ := io.ReadAll(c.Request().Body)
+		c.Request().Body = io.NopCloser(bytes.NewReader(rawBody))
 		var req openai.ChatCompletionRequest
 		if err := c.Bind(&req); err != nil {
 			return errors.NewBadRequestError("请求体解析失败", err)
+		}
+
+		if cfg.Logging.EnableRequestLog {
+			if len(rawBody) > 0 {
+				logger.Info("[DEBUG] 入口原始请求体",
+					zap.String("body", string(rawBody)),
+				)
+			}
+		}
+
+		if len(req.Messages) == 0 {
+			return errors.NewEmptyMessageError()
+		}
+		hasUserContent := false
+		for _, msg := range req.Messages {
+			if msg.Role != "user" {
+				continue
+			}
+			if msg.Content == "" && len(msg.MultiContent) == 0 {
+				logger.Warn("请求体存在空消息content，疑似上游丢失内容",
+					zap.String("model", req.Model),
+					zap.Int("message_count", len(req.Messages)),
+				)
+				continue
+			}
+			hasUserContent = true
+		}
+		if !hasUserContent {
+			return errors.NewEmptyMessageError()
 		}
 
 		ctx := c.Request().Context()
