@@ -48,6 +48,7 @@ type ServerConfig struct {
 type MonicaConfig struct {
 	Cookie              string `yaml:"cookie" json:"cookie"`
 	BotUID              string `yaml:"bot_uid" json:"bot_uid"`
+	DefaultModel        string `yaml:"default_model" json:"default_model"`  // 默认模型
 	EnableCustomBotMode bool   `yaml:"enable_custom_bot_mode" json:"enable_custom_bot_mode"`
 }
 

@@ -106,7 +106,7 @@ func createSSEClient(cfg *config.Config) *resty.Client {
 
 // createDefaultClient 创建默认客户端
 func createDefaultClient(cfg *config.Config) *resty.Client {
-	// 创建自定义的Transport
+	// 创建自定义的Transport - 临时禁用代理
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -121,19 +121,20 @@ func createDefaultClient(cfg *config.Config) *resty.Client {
 			InsecureSkipVerify: cfg.Security.TLSSkipVerify,
 			MinVersion:         tls.VersionTLS12, // 强制使用TLS 1.2+
 		},
-		Proxy: http.ProxyFromEnvironment, // 使用环境变量中的代理设置
+		Proxy: nil, // 临时禁用代理以解决连接问题
 	}
 
+	// 临时注释掉代理配置
 	// 如果配置中有代理设置，则使用配置的代理
-	if cfg.Proxy.HTTPProxy != "" || cfg.Proxy.HTTPSProxy != "" {
-		proxyURL := cfg.Proxy.HTTPProxy
-		if proxyURL == "" {
-			proxyURL = cfg.Proxy.HTTPSProxy
-		}
-		if parsedProxyURL, err := url.Parse(proxyURL); err == nil {
-			transport.Proxy = http.ProxyURL(parsedProxyURL)
-		}
-	}
+	// if cfg.Proxy.HTTPProxy != "" || cfg.Proxy.HTTPSProxy != "" {
+	// 	proxyURL := cfg.Proxy.HTTPProxy
+	// 	if proxyURL == "" {
+	// 		proxyURL = cfg.Proxy.HTTPSProxy
+	// 	}
+	// 	if parsedProxyURL, err := url.Parse(proxyURL); err == nil {
+	// 		transport.Proxy = http.ProxyURL(parsedProxyURL)
+	// 	}
+	// }
 
 	client := resty.NewWithClient(&http.Client{
 		Transport: transport,

@@ -91,6 +91,14 @@ func (p *processMonicaSSE) processSSEStream(handler handleSSEData) error {
 	var chunkCount int64
 	var startTime = time.Now()
 	
+	// 添加详细日志
+	logger.Info("[DEBUG-SSE] 开始处理SSE流",
+		zap.String("model", p.model),
+		zap.Time("start_time", startTime),
+		zap.Bool("has_config", p.cfg != nil),
+		zap.Bool("enable_log", p.cfg != nil && p.cfg.Logging.EnableRequestLog),
+	)
+	
 	for {
 		// 检查上下文是否已取消
 		select {
@@ -133,16 +141,43 @@ func (p *processMonicaSSE) processSSEStream(handler handleSSEData) error {
 
 		// Monica SSE 的行前缀一般是 "data: "
 		if len(line) < dataPrefixLen || !bytes.HasPrefix(line, []byte(dataPrefix)) {
+			// 添加调试日志
+			if p.cfg != nil && p.cfg.Logging.EnableRequestLog {
+				lineStr := strings.TrimSpace(string(line))
+				if lineStr != "" && lineStr != "\n" {
+					logger.Debug("[DEBUG-SSE] 跳过非data行",
+						zap.String("line", lineStr),
+						zap.Int("length", len(line)),
+					)
+				}
+			}
 			continue
 		}
 
 		// 安全地提取JSON字符串，避免slice bounds越界
 		if len(line) <= dataPrefixLen+1 { // 需要至少 data: + 至少1个字符 + \n
+			logger.Debug("[DEBUG-SSE] 行太短",
+				zap.Int("line_length", len(line)),
+				zap.Int("min_required", dataPrefixLen+2),
+			)
 			continue
 		}
 		jsonStr := line[dataPrefixLen : len(line)-1] // 去掉\n
 		if len(jsonStr) == 0 {
+			logger.Debug("[DEBUG-SSE] JSON字符串为空")
 			continue
+		}
+		
+		// 添加JSON字符串预览
+		if p.cfg != nil && p.cfg.Logging.EnableRequestLog {
+			jsonPreview := string(jsonStr)
+			if len(jsonPreview) > 100 {
+				jsonPreview = jsonPreview[:100] + "..."
+			}
+			logger.Debug("[DEBUG-SSE] 提取的JSON字符串",
+				zap.String("json_preview", jsonPreview),
+				zap.Int("json_length", len(jsonStr)),
+			)
 		}
 
 		if p.cfg != nil && p.cfg.Logging.EnableRequestLog {
@@ -248,10 +283,30 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 		cfg:    cfg,
 	}
 
+	// 添加详细日志
+	logger.Info("[DEBUG] 开始CollectMonicaSSEToCompletion",
+		zap.String("model", model),
+		zap.Bool("has_config", cfg != nil),
+	)
+
 	// 处理SSE数据
 	err := processor.processSSEStream(func(sseData *SSEData) error {
+		// 添加详细日志
+		logger.Debug("[DEBUG] 处理SSE数据",
+			zap.String("text_preview", func() string {
+				if len(sseData.Text) > 50 {
+					return sseData.Text[:50] + "..."
+				}
+				return sseData.Text
+			}()),
+			zap.Bool("finished", sseData.Finished),
+			zap.String("agent_status_type", sseData.AgentStatus.Type),
+			zap.Int("text_length", len(sseData.Text)),
+		)
+		
 		// 如果是 agent_status，跳过
 		if sseData.AgentStatus.Type != "" {
+			logger.Debug("[DEBUG] 跳过agent_status")
 			return nil
 		}
 		// 累积内容
@@ -265,6 +320,20 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 
 	// 记录完整的响应内容
 	fullContent := fullContentBuilder.String()
+	
+	// 添加详细日志
+	logger.Info("[DEBUG] CollectMonicaSSEToCompletion 完成",
+		zap.String("model", model),
+		zap.Int("content_length", len(fullContent)),
+		zap.Bool("has_error", err != nil),
+		zap.String("error", func() string {
+			if err != nil {
+				return err.Error()
+			}
+			return ""
+		}()),
+	)
+	
 	if len(fullContent) > 0 {
 		logger.Info("Monica完整响应内容",
 			zap.String("model", model),
