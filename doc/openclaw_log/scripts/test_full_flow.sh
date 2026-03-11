@@ -28,7 +28,7 @@ fi
 
 # 检查Monica API
 echo "   - Monica API:"
-API_TEST=$(curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" http://localhost:8080/v1/models 2>/dev/null | head -c 50)
+API_TEST=$(curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" http://localhost:8080/v1/models 2>/dev/null | head -c 50)
 if [ -n "$API_TEST" ]; then
     echo "     ✅ 可访问"
 else
@@ -43,7 +43,7 @@ echo "2. 测试Monica模型调用..."
 # 测试claude-4-sonnet
 echo "   - 测试 claude-4-sonnet:"
 RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "简单回复'测试成功'即可"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 
@@ -58,7 +58,7 @@ fi
 # 测试gpt-4o
 echo "   - 测试 gpt-4o:"
 RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "Hello"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 
@@ -100,7 +100,7 @@ echo "   - 发送测试请求到Monica代理..."
 # 注意：这里我们直接调用Monica代理，但使用OpenClaw的模型ID格式
 # 实际上OpenClaw会去掉'monica/'前缀再调用
 RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "这是一条测试消息，请简单回复'OpenClaw测试成功'"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 

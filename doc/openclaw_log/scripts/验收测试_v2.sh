@@ -13,7 +13,7 @@ else
     exit 1
 fi
 
-if curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+if curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   http://localhost:8080/v1/models >/dev/null 2>&1; then
     echo "   ✅ Monica API可访问"
 else
@@ -25,7 +25,7 @@ fi
 echo ""
 echo "2. ✅ 测试Claude 4 Sonnet模型调用..."
 RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "回复验收测试成功"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 
@@ -71,7 +71,7 @@ echo "$GIT_OUTPUT" | while read line; do echo "     $line"; done
 echo ""
 echo "   步骤2: 通过Monica分析结果"
 ANALYSIS_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "我的git status显示在dev_1_1_0分支，比origin/dev_1_0_0领先1个提交，工作目录干净。请简要分析"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 

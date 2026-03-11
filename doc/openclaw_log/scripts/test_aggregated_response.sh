@@ -18,7 +18,7 @@ sleep 3
 
 # 测试非流式请求
 echo -e "\n步骤3: 测试非流式请求 (stream: false)"
-BEARER_TOKEN="d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2"
+BEARER_TOKEN="d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx"
 
 echo "请求:"
 echo 'curl -X POST "http://localhost:8080/v1/chat/completions" \'

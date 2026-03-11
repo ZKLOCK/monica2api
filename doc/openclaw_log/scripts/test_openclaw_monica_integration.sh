@@ -32,7 +32,7 @@ import json
 
 # Monica 代理的配置
 MONICA_URL = "http://localhost:8080/v1/chat/completions"
-BEARER_TOKEN = "d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2"
+BEARER_TOKEN = "d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx"
 
 # 模拟 OpenClaw 会发送的请求
 request_data = {

@@ -56,7 +56,7 @@ cd frontend && npm install
 ./build/bin/monica-proxy-wails -cli
 
 # 测试 API 端点
-curl -H "Authorization: Bearer your_token" http://localhost:8080/v1/models
+curl -H "Authorization: Bearer YOUR_TOKEN_HERE" http://localhost:8080/v1/models
 ```
 
 ## Configuration
@@ -77,7 +77,7 @@ curl -H "Authorization: Bearer your_token" http://localhost:8080/v1/models
 ### 环境变量
 ```bash
 export MONICA_COOKIE="your_monica_cookie"
-export BEARER_TOKEN="your_api_token"
+export BEARER_TOKEN="YOUR_TOKEN_HERE"
 export BOT_UID="your_bot_uid"  # 可选
 export ENABLE_CUSTOM_BOT_MODE=true  # 可选
 ```

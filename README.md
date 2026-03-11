@@ -84,7 +84,7 @@ wails build
 ### 测试API
 
 ```bash
-curl -H "Authorization: Bearer your_bearer_token" \
+curl -H "Authorization: Bearer YOUR_BEARER_TOKEN_HERE" \
      http://localhost:8080/v1/models
 ```
 
@@ -112,7 +112,7 @@ go build -o monica-proxy-fyne main.go
 
 # 命令行模式运行
 export MONICA_COOKIE="your_cookie"
-export BEARER_TOKEN="your_token"
+export BEARER_TOKEN="YOUR_TOKEN_HERE"
 # export BOT_UID="your_bot_uid"  # 可选，用于Custom Bot模式
 ./monica-proxy-fyne -cli
 
@@ -231,7 +231,7 @@ Authorization: Bearer YOUR_BEARER_TOKEN
 
 ```bash
 curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer your_token" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
@@ -248,13 +248,13 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 ```bash
 # 上传文档文件
 curl -X POST http://localhost:8080/v1/files \
-  -H "Authorization: Bearer your_token" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -F "file=@document.pdf" \
   -F "purpose=assistants"
 
 # 在聊天中使用已上传的文件
 curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer your_token" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
@@ -304,7 +304,7 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 # 现在所有 /v1/chat/completions 请求都支持 system prompt
 curl -X POST http://localhost:8080/v1/chat/completions \
-  -H "Authorization: Bearer your_token" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",

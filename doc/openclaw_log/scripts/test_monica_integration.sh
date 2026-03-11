@@ -26,7 +26,7 @@ fi
 # 3. 测试Monica API
 echo "3. 测试Monica API..."
 API_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
-  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+  -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   -d '{"model": "claude-4-sonnet", "messages": [{"role": "user", "content": "测试Monica代理集成"}], "stream": false}' \
   http://localhost:8080/v1/chat/completions)
 

@@ -17,7 +17,7 @@ cp "$CONFIG_FILE" "$TEMP_FILE"
 
 echo "2. 获取Monica代理实际支持的模型..."
 # 获取实际支持的模型
-SUPPORTED_MODELS=$(curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2" \
+SUPPORTED_MODELS=$(curl -s -H "Authorization: Bearer d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx" \
   http://localhost:8080/v1/models | jq -r '.data[].id' | sort)
 
 echo "3. 配置用户指定的模型（映射到实际支持的模型）..."

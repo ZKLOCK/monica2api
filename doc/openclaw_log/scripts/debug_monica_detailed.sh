@@ -16,7 +16,7 @@ else
 fi
 
 echo -e "\n2. 测试 Monica API 详细请求"
-BEARER_TOKEN="d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2"
+BEARER_TOKEN="d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f17xxxxxx"
 
 echo "请求详情:"
 cat << EOF
