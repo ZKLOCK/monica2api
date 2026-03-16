@@ -22,7 +22,75 @@
 ## ✨ **必要提示**
 1. 本项目是模拟http请求，来使用你的Monica账号进行请求。如果对应的模型、服务要消耗Monica高级积分，这个程序不能幸免；
 2. 本项目不确定会不会导致你的账号被封，这是非常重要的风险提示，风险自担 ， 当然你可以二次审计修改；
-3. 目前不支持工具调用
+3. ✅ **Function Calling隧道支持** - 通过创新的隧道技术绕过Monica API限制，实现完整的工具调用功能
+
+## 🔧 **Function Calling隧道功能**
+
+### 功能概述
+Monica官方API不支持标准的OpenAI Function Calling格式。我们通过创新的"隧道技术"实现了完整的Function Calling支持：
+
+#### 技术原理
+```
+OpenClaw → 代理层 → Monica → GPT → 代理层 → OpenClaw
+     ↓           ↓         ↓         ↓           ↓
+  标准FC     序列化FC   透传消息   返回结果   反序列化FC
+```
+
+#### 核心特性
+- ✅ **完整的OpenAI兼容性** - 支持标准`tools`参数格式
+- ✅ **流式和非流式支持** - 同时支持两种响应模式
+- ✅ **智能容错处理** - 多层解析策略，处理GPT输出变体
+- ✅ **高性能解析** - 优化的流式解析器，低延迟处理
+
+#### 使用示例
+```json
+// 发送请求（标准OpenAI格式）
+{
+  "model": "gpt-4",
+  "messages": [{"role": "user", "content": "列出当前目录"}],
+  "tools": [{
+    "type": "function",
+    "function": {
+      "name": "run_command",
+      "description": "执行系统命令",
+      "parameters": {
+        "type": "object",
+        "properties": {"cmd": {"type": "string"}},
+        "required": ["cmd"]
+      }
+    }
+  }]
+}
+
+// 返回响应（标准OpenAI格式）
+{
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "tool_calls": [{
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "run_command",
+          "arguments": "{\"cmd\": \"ls -la\"}"
+        }
+      }]
+    },
+    "finish_reason": "tool_calls"
+  }]
+}
+```
+
+#### 技术实现
+- **序列化**: 将`tools`数组隐藏到用户消息中
+- **隧道传输**: 通过Monica API透传隐藏信息
+- **反序列化**: 解析GPT返回的隐藏格式
+- **格式转换**: 转换为OpenAI标准ToolCall格式
+
+#### 文档和测试
+- 完整开发文档: `doc/openclaw_log/logs/README_function_calling_tunnel.md`
+- 详细技术实现: 查看`internal/types/monica.go`和`internal/monica/sse.go`
+- 测试验证: 通过Python脚本全面验证核心逻辑
 
 ## 🚀 **快速开始**
 
