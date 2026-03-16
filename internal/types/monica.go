@@ -2,6 +2,7 @@ package types
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"monica-proxy/internal/config"
 	"monica-proxy/internal/logger"
@@ -458,6 +459,21 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 	items[0] = defaultItem
 	preItemID := defaultItem.ItemID
 
+	// 检查是否有tools需要处理（Function Calling隧道）
+	hasTools := chatReq.Tools != nil && len(chatReq.Tools) > 0
+	var toolsJSON string
+	if hasTools {
+		toolsBytes, err := json.Marshal(chatReq.Tools)
+		if err != nil {
+			logger.Warn("序列化tools失败", zap.Error(err))
+		} else {
+			toolsJSON = string(toolsBytes)
+			logger.Info("检测到Function Calling tools", 
+				zap.Int("tool_count", len(chatReq.Tools)),
+				zap.String("tools_json", toolsJSON))
+		}
+	}
+
 	for _, msg := range chatReq.Messages {
 		if msg.Role == "system" {
 			// monica不支持设置prompt，所以直接跳过
@@ -601,9 +617,23 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 				IsIncognito: true,
 			}
 		} else {
+			// 如果是最后一个用户消息且有tools，将tools信息隐藏到消息中
+			finalContent := msg.Content
+			if hasTools && msg.Role == "user" && msg == chatReq.Messages[len(chatReq.Messages)-1] {
+				// 添加Function Calling隧道信息
+				toolsInstruction := "\n\n<function_calling_tools>\n" + toolsJSON + "\n</function_calling_tools>\n"
+				toolsInstruction += "\n<function_calling_instruction>\n"
+				toolsInstruction += "当你需要调用工具时，请严格按以下格式输出，不要添加任何其他文字：\n"
+				toolsInstruction += "<tool_call>\n{\"name\": \"工具名\", \"arguments\": {...}}\n</tool_call>\n"
+				toolsInstruction += "</function_calling_instruction>"
+				
+				finalContent = msg.Content + toolsInstruction
+				logger.Info("添加Function Calling隧道信息到用户消息")
+			}
+			
 			content = ItemContent{
 				Type:        "text",
-				Content:     msg.Content,
+				Content:     finalContent,
 				IsIncognito: true,
 			}
 		}

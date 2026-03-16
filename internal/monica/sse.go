@@ -12,6 +12,7 @@ import (
 	"monica-proxy/internal/types"
 	"monica-proxy/internal/utils"
 	"net/http"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -265,6 +266,176 @@ func (p *processMonicaSSE) processSSEStream(handler handleSSEData) error {
 	}
 }
 
+// parseToolCallJSON 解析tool_call JSON字符串
+func parseToolCallJSON(jsonStr string) (*openai.ToolCall, error) {
+	logger.Info("解析Function Call JSON", 
+		zap.String("json", jsonStr))
+	
+	// 尝试修复常见的JSON格式问题
+	jsonStr = strings.TrimSpace(jsonStr)
+	
+	// 尝试1: 标准解析
+	var toolCall struct {
+		Name      string                 `json:"name"`
+		Arguments map[string]interface{} `json:"arguments"`
+	}
+	
+	err := sonic.Unmarshal([]byte(jsonStr), &toolCall)
+	if err != nil {
+		// 尝试2: 修复单引号
+		jsonStr = strings.ReplaceAll(jsonStr, "'", "\"")
+		err = sonic.Unmarshal([]byte(jsonStr), &toolCall)
+		
+		if err != nil {
+			// 尝试3: 修复缺少引号的属性名
+			// 简单的修复：在冒号前添加引号
+			re := regexp.MustCompile(`(\w+):`)
+			jsonStr = re.ReplaceAllString(jsonStr, `"$1":`)
+			err = sonic.Unmarshal([]byte(jsonStr), &toolCall)
+			
+			if err != nil {
+				logger.Error("多次尝试解析tool_call JSON均失败", 
+					zap.String("original_json", jsonStr),
+					zap.Error(err))
+				return nil, fmt.Errorf("解析tool_call JSON失败: %v", err)
+			}
+		}
+	}
+	
+	// 验证必需字段
+	if toolCall.Name == "" {
+		return nil, fmt.Errorf("tool_call缺少name字段")
+	}
+	
+	if toolCall.Arguments == nil {
+		toolCall.Arguments = make(map[string]interface{})
+	}
+	
+	// 将arguments转换为JSON字符串
+	argsBytes, err := sonic.Marshal(toolCall.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("序列化arguments失败: %v", err)
+	}
+	
+	// 创建OpenAI格式的ToolCall
+	return &openai.ToolCall{
+		ID:   fmt.Sprintf("call_%s", utils.RandStringUsingMathRand(16)),
+		Type: "function",
+		Function: openai.FunctionCall{
+			Name:      toolCall.Name,
+			Arguments: string(argsBytes),
+		},
+	}, nil
+}
+
+// parseFunctionCallFromContent 从内容中解析Function Call
+func parseFunctionCallFromContent(content string) (*openai.ToolCall, error) {
+	// 查找 <tool_call> 标签
+	startTag := "<tool_call>"
+	endTag := "</tool_call>"
+	
+	startIdx := strings.Index(content, startTag)
+	if startIdx == -1 {
+		return nil, nil // 没有找到tool_call标签
+	}
+	
+	endIdx := strings.Index(content, endTag)
+	if endIdx == -1 {
+		return nil, fmt.Errorf("找到开始标签但未找到结束标签")
+	}
+	
+	// 提取JSON内容
+	jsonStart := startIdx + len(startTag)
+	jsonStr := strings.TrimSpace(content[jsonStart:endIdx])
+	
+	return parseToolCallJSON(jsonStr)
+}
+
+// sendToolCallStream 发送tool_call流式响应
+func sendToolCallStream(writer *bufio.Writer, w io.Writer, chatId string, now int64, model string, fingerprint string, toolCall *openai.ToolCall) error {
+	// 发送tool_call开始消息
+	toolCallStartMsg := types.ChatCompletionStreamResponse{
+		ID:                "chatcmpl-" + chatId,
+		Object:            sseObject,
+		SystemFingerprint: fingerprint,
+		Created:           now,
+		Model:             model,
+		Choices: []types.ChatCompletionStreamChoice{
+			{
+				Index: 0,
+				Delta: openai.ChatCompletionStreamChoiceDelta{
+					Role: openai.ChatMessageRoleAssistant,
+				},
+				FinishReason: openai.FinishReasonNull,
+			},
+		},
+	}
+	
+	// 发送tool_call内容
+	toolCallMsg := types.ChatCompletionStreamResponse{
+		ID:                "chatcmpl-" + chatId,
+		Object:            sseObject,
+		SystemFingerprint: fingerprint,
+		Created:           now,
+		Model:             model,
+		Choices: []types.ChatCompletionStreamChoice{
+			{
+				Index: 0,
+				Delta: openai.ChatCompletionStreamChoiceDelta{
+					ToolCalls: []openai.ToolCall{*toolCall},
+				},
+				FinishReason: openai.FinishReasonNull,
+			},
+		},
+	}
+	
+	// 发送完成消息
+	toolCallFinishMsg := types.ChatCompletionStreamResponse{
+		ID:                "chatcmpl-" + chatId,
+		Object:            sseObject,
+		SystemFingerprint: fingerprint,
+		Created:           now,
+		Model:             model,
+		Choices: []types.ChatCompletionStreamChoice{
+			{
+				Index:        0,
+				FinishReason: openai.FinishReasonToolCalls,
+			},
+		},
+	}
+	
+	// 发送所有消息
+	messages := []types.ChatCompletionStreamResponse{toolCallStartMsg, toolCallMsg, toolCallFinishMsg}
+	for _, msg := range messages {
+		sb := stringBuilderPool.Get().(*strings.Builder)
+		sb.WriteString("data: ")
+		sendLine, _ := sonic.MarshalString(msg)
+		sb.WriteString(sendLine)
+		sb.WriteString("\n\n")
+		
+		if _, err := writer.WriteString(sb.String()); err != nil {
+			sb.Reset()
+			stringBuilderPool.Put(sb)
+			return fmt.Errorf("write tool_call error: %w", err)
+		}
+		
+		sb.Reset()
+		stringBuilderPool.Put(sb)
+	}
+	
+	// 刷新缓冲区
+	writer.Flush()
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	
+	logger.Info("已发送tool_call流式响应",
+		zap.String("tool_name", toolCall.Function.Name),
+		zap.String("tool_arguments", toolCall.Function.Arguments))
+	
+	return nil
+}
+
 // CollectMonicaSSEToCompletion 将 Monica SSE 转换为完整的 ChatCompletion 响应
 func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config) (*openai.ChatCompletionResponse, error) {
 	ctx := context.Background()
@@ -352,6 +523,32 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 		)
 	}
 
+	// 检查是否包含Function Call
+	var toolCalls []openai.ToolCall
+	var finishReason string
+	var responseContent string
+	
+	// 尝试解析Function Call
+	toolCall, err := parseFunctionCallFromContent(fullContent)
+	if err != nil {
+		logger.Error("解析Function Call失败", zap.Error(err))
+		// 解析失败，返回原始内容
+		responseContent = fullContent
+		finishReason = "stop"
+	} else if toolCall != nil {
+		// 找到Function Call
+		toolCalls = []openai.ToolCall{*toolCall}
+		responseContent = "" // Function Call时content为空
+		finishReason = "tool_calls"
+		logger.Info("检测到Function Call", 
+			zap.String("tool_name", toolCall.Function.Name),
+			zap.String("tool_arguments", toolCall.Function.Arguments))
+	} else {
+		// 没有Function Call，返回原始内容
+		responseContent = fullContent
+		finishReason = "stop"
+	}
+
 	// 构造完整的响应
 	response := &openai.ChatCompletionResponse{
 		ID:      fmt.Sprintf("chatcmpl-%s", utils.RandStringUsingMathRand(29)),
@@ -362,10 +559,11 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 			{
 				Index: 0,
 				Message: openai.ChatCompletionMessage{
-					Role:    "assistant",
-					Content: fullContent,
+					Role:      "assistant",
+					Content:   responseContent,
+					ToolCalls: toolCalls,
 				},
-				FinishReason: "stop",
+				FinishReason: finishReason,
 			},
 		},
 		Usage: openai.Usage{
@@ -384,6 +582,74 @@ func StreamMonicaSSEToClient(model string, w io.Writer, r io.Reader) error {
 	return StreamMonicaSSEToClientWithConfig(model, w, r, nil)
 }
 
+// streamFunctionCallParser 流式Function Call解析器
+type streamFunctionCallParser struct {
+	buffer        strings.Builder
+	inToolCall    bool
+	toolCallStart int
+	toolCallEnd   int
+	hasToolCall   bool
+	toolCallJSON  string
+}
+
+// newStreamFunctionCallParser 创建新的流式解析器
+func newStreamFunctionCallParser() *streamFunctionCallParser {
+	return &streamFunctionCallParser{}
+}
+
+// processChunk 处理一个数据块，返回是否找到完整的tool_call
+func (p *streamFunctionCallParser) processChunk(text string) (bool, string) {
+	// 将文本添加到缓冲区
+	p.buffer.WriteString(text)
+	
+	content := p.buffer.String()
+	
+	// 如果已经在tool_call中，检查是否结束
+	if p.inToolCall {
+		endIdx := strings.Index(content[p.toolCallStart:], "</tool_call>")
+		if endIdx != -1 {
+			// 找到结束标签
+			p.toolCallEnd = p.toolCallStart + endIdx
+			p.toolCallJSON = strings.TrimSpace(content[p.toolCallStart+len("<tool_call>"):p.toolCallEnd])
+			p.hasToolCall = true
+			p.inToolCall = false
+			return true, p.toolCallJSON
+		}
+		return false, ""
+	}
+	
+	// 检查是否开始新的tool_call
+	startIdx := strings.Index(content, "<tool_call>")
+	if startIdx != -1 {
+		p.inToolCall = true
+		p.toolCallStart = startIdx
+		
+		// 检查是否在同一数据块中结束
+		remaining := content[startIdx:]
+		endIdx := strings.Index(remaining, "</tool_call>")
+		if endIdx != -1 {
+			// 在同一数据块中完成
+			p.toolCallEnd = startIdx + endIdx
+			p.toolCallJSON = strings.TrimSpace(content[startIdx+len("<tool_call>"):p.toolCallEnd])
+			p.hasToolCall = true
+			p.inToolCall = false
+			return true, p.toolCallJSON
+		}
+	}
+	
+	return false, ""
+}
+
+// reset 重置解析器状态
+func (p *streamFunctionCallParser) reset() {
+	p.buffer.Reset()
+	p.inToolCall = false
+	p.toolCallStart = 0
+	p.toolCallEnd = 0
+	p.hasToolCall = false
+	p.toolCallJSON = ""
+}
+
 // StreamMonicaSSEToClientWithConfig 将 Monica SSE 转成前端可用的流（带配置）
 func StreamMonicaSSEToClientWithConfig(model string, w io.Writer, r io.Reader, cfg *config.Config) error {
 	ctx := context.Background()
@@ -395,6 +661,10 @@ func StreamMonicaSSEToClientWithConfig(model string, w io.Writer, r io.Reader, c
 	fingerprint := utils.RandStringUsingMathRand(10)
 	var startTime = time.Now()
 	var chunkCount int64
+
+	// 创建Function Call解析器
+	fcParser := newStreamFunctionCallParser()
+	var hasSentToolCall bool
 
 	if cfg != nil && cfg.Logging.EnableRequestLog {
 		logger.Info("开始SSE流式响应",
@@ -436,6 +706,30 @@ func StreamMonicaSSEToClientWithConfig(model string, w io.Writer, r io.Reader, c
 	var thinkFlag bool
 	return processor.processSSEStream(func(sseData *SSEData) error {
 		atomic.AddInt64(&chunkCount, 1)
+		
+		// 检查是否已经发送了tool_call
+		if hasSentToolCall {
+			// 如果已经发送了tool_call，跳过后续内容
+			logger.Debug("已发送tool_call，跳过后续内容")
+			return nil
+		}
+		
+		// 处理Function Call检测
+		if !hasSentToolCall && sseData.Text != "" {
+			found, toolCallJSON := fcParser.processChunk(sseData.Text)
+			if found {
+				// 解析tool_call
+				toolCall, err := parseToolCallJSON(toolCallJSON)
+				if err != nil {
+					logger.Error("解析流式tool_call失败", zap.Error(err))
+					// 解析失败，继续发送普通文本
+				} else {
+					// 发送tool_call流式响应
+					hasSentToolCall = true
+					return sendToolCallStream(writer, w, chatId, now, model, fingerprint, toolCall)
+				}
+			}
+		}
 		
 		var sseMsg types.ChatCompletionStreamResponse
 		switch {
