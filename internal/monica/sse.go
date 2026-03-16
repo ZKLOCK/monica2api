@@ -525,7 +525,7 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 
 	// 检查是否包含Function Call
 	var toolCalls []openai.ToolCall
-	var finishReason string
+	var finishReason openai.FinishReason
 	var responseContent string
 	
 	// 尝试解析Function Call
@@ -534,19 +534,19 @@ func CollectMonicaSSEToCompletion(model string, r io.Reader, cfg *config.Config)
 		logger.Error("解析Function Call失败", zap.Error(err))
 		// 解析失败，返回原始内容
 		responseContent = fullContent
-		finishReason = "stop"
+		finishReason = openai.FinishReasonStop
 	} else if toolCall != nil {
 		// 找到Function Call
 		toolCalls = []openai.ToolCall{*toolCall}
 		responseContent = "" // Function Call时content为空
-		finishReason = "tool_calls"
+		finishReason = openai.FinishReasonToolCalls
 		logger.Info("检测到Function Call", 
 			zap.String("tool_name", toolCall.Function.Name),
 			zap.String("tool_arguments", toolCall.Function.Arguments))
 	} else {
 		// 没有Function Call，返回原始内容
 		responseContent = fullContent
-		finishReason = "stop"
+		finishReason = openai.FinishReasonStop
 	}
 
 	// 构造完整的响应

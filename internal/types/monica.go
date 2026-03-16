@@ -474,7 +474,7 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 		}
 	}
 
-	for _, msg := range chatReq.Messages {
+	for idx, msg := range chatReq.Messages {
 		if msg.Role == "system" {
 			// monica不支持设置prompt，所以直接跳过
 			continue
@@ -619,7 +619,7 @@ func ChatGPTToMonica(cfg *config.Config, chatReq openai.ChatCompletionRequest) (
 		} else {
 			// 如果是最后一个用户消息且有tools，将tools信息隐藏到消息中
 			finalContent := msg.Content
-			if hasTools && msg.Role == "user" && msg == chatReq.Messages[len(chatReq.Messages)-1] {
+			if hasTools && msg.Role == "user" && idx == len(chatReq.Messages)-1 {
 				// 添加Function Calling隧道信息
 				toolsInstruction := "\n\n<function_calling_tools>\n" + toolsJSON + "\n</function_calling_tools>\n"
 				toolsInstruction += "\n<function_calling_instruction>\n"
