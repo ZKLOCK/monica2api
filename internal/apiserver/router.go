@@ -218,6 +218,7 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			zap.Bool("original_stream", req.Stream),
 			zap.Bool("is_openclaw", isOpenClaw),
 			zap.Bool("final_stream", shouldStream),
+			zap.String("user_agent", userAgent),
 		)
 
 		if shouldStream {
