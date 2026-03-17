@@ -111,6 +111,7 @@ func (s *customBotService) HandleCustomBotChat(ctx context.Context, req *openai.
 	logger.Info("收到Monica原始响应",
 		zap.String("model", req.Model),
 		zap.Any("response_type", fmt.Sprintf("%T", response)),
+		zap.Any("response_value", response),
 	)
 	
 	// 解析Function Calling隧道响应
@@ -125,6 +126,7 @@ func (s *customBotService) HandleCustomBotChat(ctx context.Context, req *openai.
 	logger.Info("Function Calling隧道解析完成",
 		zap.String("model", req.Model),
 		zap.Any("parsed_response_type", fmt.Sprintf("%T", parsedResponse)),
+		zap.Any("parsed_response_value", parsedResponse),
 	)
 	
 	return parsedResponse, nil
@@ -137,79 +139,86 @@ func (s *customBotService) parseFunctionCallingTunnel(response interface{}, mode
 		zap.Any("response_type", fmt.Sprintf("%T", response)),
 	)
 	
-	// 将响应转换为map以便处理
-	responseMap, ok := response.(map[string]interface{})
-	if !ok {
-		logger.Warn("响应不是map类型，跳过Function Calling解析",
+	// 尝试转换为openai.ChatCompletionResponse指针
+	if chatResp, ok := response.(*openai.ChatCompletionResponse); ok {
+		logger.Info("响应是openai.ChatCompletionResponse类型",
+			zap.String("model", model),
+			zap.Int("choices_count", len(chatResp.Choices)),
+		)
+		
+		if len(chatResp.Choices) > 0 {
+			choice := chatResp.Choices[0]
+			content := choice.Message.Content
+			
+			logger.Info("检查响应内容",
+				zap.String("model", model),
+				zap.String("content", content),
+				zap.Int("content_length", len(content)),
+			)
+			
+			// 查找 <fc-tool> 标签
+			fcStart := strings.Index(content, "<fc-tool>")
+			fcEnd := strings.Index(content, "</fc-tool>")
+			
+			if fcStart == -1 || fcEnd == -1 || fcEnd <= fcStart {
+				// 没有找到Function Calling标签
+				logger.Info("未找到Function Calling标签",
+					zap.String("model", model),
+					zap.String("content_preview", func() string {
+						if len(content) > 100 {
+							return content[:100] + "..."
+						}
+						return content
+					}()),
+				)
+				return response, nil
+			}
+			
+			// 提取标签内容
+			fcContent := content[fcStart+len("<fc-tool>") : fcEnd]
+			
+			logger.Info("找到Function Calling标签",
+				zap.String("model", model),
+				zap.String("fc_content", fcContent),
+			)
+			
+			// 解析JSON
+			var fcData map[string]interface{}
+			if err := json.Unmarshal([]byte(fcContent), &fcData); err != nil {
+				logger.Error("解析Function Calling JSON失败", 
+					zap.String("model", model),
+					zap.String("fc_content", fcContent),
+					zap.Error(err),
+				)
+				return response, nil
+			}
+			
+			logger.Info("解析到Function Calling数据",
+				zap.String("model", model),
+				zap.Any("fc_data", fcData),
+			)
+			
+			// 执行Function Calling
+			executionResult := s.executeFunctionCall(fcData, model)
+			
+			// 更新响应内容
+			chatResp.Choices[0].Message.Content = executionResult
+			
+			logger.Info("Function Calling执行完成",
+				zap.String("model", model),
+				zap.String("execution_result", executionResult),
+			)
+			
+			return chatResp, nil
+		}
+	} else {
+		logger.Warn("响应不是openai.ChatCompletionResponse类型，跳过Function Calling解析",
 			zap.String("model", model),
 			zap.Any("actual_type", fmt.Sprintf("%T", response)),
 		)
-		return response, nil
 	}
 	
-	logger.Debug("响应map结构",
-		zap.String("model", model),
-		zap.Any("response_keys", getMapKeys(responseMap)),
-	)
-	
-	// 提取choices
-	choices, ok := responseMap["choices"].([]interface{})
-	if !ok || len(choices) == 0 {
-		return response, nil
-	}
-	
-	firstChoice, ok := choices[0].(map[string]interface{})
-	if !ok {
-		return response, nil
-	}
-	
-	message, ok := firstChoice["message"].(map[string]interface{})
-	if !ok {
-		return response, nil
-	}
-	
-	content, ok := message["content"].(string)
-	if !ok {
-		return response, nil
-	}
-	
-	// 查找 <fc-tool> 标签
-	fcStart := strings.Index(content, "<fc-tool>")
-	fcEnd := strings.Index(content, "</fc-tool>")
-	
-	if fcStart == -1 || fcEnd == -1 || fcEnd <= fcStart {
-		// 没有找到Function Calling标签，返回原始响应
-		logger.Info("未找到Function Calling标签", zap.String("model", model))
-		return response, nil
-	}
-	
-	// 提取标签内容
-	fcContent := content[fcStart+len("<fc-tool>") : fcEnd]
-	
-	// 解析JSON
-	var fcData map[string]interface{}
-	if err := json.Unmarshal([]byte(fcContent), &fcData); err != nil {
-		logger.Error("解析Function Calling JSON失败", 
-			zap.String("model", model),
-			zap.String("fc_content", fcContent),
-			zap.Error(err),
-		)
-		return response, nil
-	}
-	
-	logger.Info("解析到Function Calling",
-		zap.String("model", model),
-		zap.Any("fc_data", fcData),
-	)
-	
-	// 这里应该执行对应的函数，然后返回执行结果
-	// 暂时先返回一个模拟的执行结果
-	executionResult := s.executeFunctionCall(fcData, model)
-	
-	// 更新响应内容
-	message["content"] = executionResult
-	
-	return responseMap, nil
+	return response, nil
 }
 
 // executeFunctionCall 执行Function Calling
