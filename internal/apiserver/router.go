@@ -22,6 +22,11 @@ import (
 // 返回true表示需要走Custom Bot分支（Function Calling）
 // 返回false表示直接调用模型
 func shouldUseCustomBot(model string, cfg *config.Config) bool {
+	logger.Debug("开始判断模型分支",
+		zap.String("model", model),
+		zap.Bool("enable_custom_bot_mode", cfg.Monica.EnableCustomBotMode),
+	)
+	
 	// 如果未启用Custom Bot模式，直接返回false
 	if !cfg.Monica.EnableCustomBotMode {
 		logger.Info("Custom Bot模式未启用，使用直接调用",
@@ -32,6 +37,10 @@ func shouldUseCustomBot(model string, cfg *config.Config) bool {
 
 	// 将模型转换为小写以便比较
 	modelLower := strings.ToLower(model)
+	logger.Debug("模型名称转换为小写",
+		zap.String("original", model),
+		zap.String("lowercase", modelLower),
+	)
 	
 	// 定义需要走Monica代理（Custom Bot分支）的模型
 	// 这些是需要Function Calling的模型
@@ -63,6 +72,7 @@ func shouldUseCustomBot(model string, cfg *config.Config) bool {
 			logger.Info("模型需要Monica代理（Function Calling）", 
 				zap.String("model", model),
 				zap.String("matched_prefix", prefix),
+				zap.String("model_lower", modelLower),
 			)
 			return true
 		}
@@ -71,6 +81,7 @@ func shouldUseCustomBot(model string, cfg *config.Config) bool {
 	// 其他模型（DeepSeek、Qwen、Kimi等原生大模型）直接调用
 	logger.Info("原生大模型使用直接调用模式", 
 		zap.String("model", model),
+		zap.String("model_lower", modelLower),
 	)
 	return false
 }
@@ -131,6 +142,8 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			zap.String("user_agent", userAgent),
 			zap.Bool("is_openclaw", isOpenClaw),
 			zap.Bool("request_stream", req.Stream),
+			zap.String("model", req.Model),
+			zap.Int("message_count", len(req.Messages)),
 		)
 
 		// 根据模型类型决定使用哪个分支
