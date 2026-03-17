@@ -18,6 +18,63 @@ import (
 	"go.uber.org/zap"
 )
 
+// shouldUseCustomBot 判断是否应该使用Custom Bot模式
+// 返回true表示需要走Custom Bot分支（Function Calling）
+// 返回false表示直接调用模型
+func shouldUseCustomBot(model string, cfg *config.Config) bool {
+	// 如果未启用Custom Bot模式，直接返回false
+	if !cfg.Monica.EnableCustomBotMode {
+		logger.Info("Custom Bot模式未启用，使用直接调用",
+			zap.String("model", model),
+		)
+		return false
+	}
+
+	// 将模型转换为小写以便比较
+	modelLower := strings.ToLower(model)
+	
+	// 定义需要走Monica代理（Custom Bot分支）的模型
+	// 这些是需要Function Calling的模型
+	monicaProxyModels := map[string]bool{
+		// GPT系列（需要Function Calling）
+		"gpt-": true,
+		"gpt4": true,
+		"gpt5": true,
+		
+		// Claude系列（需要Function Calling）
+		"claude-": true,
+		
+		// Gemini系列（需要Function Calling）
+		"gemini-": true,
+		
+		// OpenAI o系列（需要Function Calling）
+		"o1-": true,
+		"o3": true,
+		"o4-": true,
+		
+		// 其他需要Function Calling的模型
+		"sonar": true,
+		"grok-": true,
+	}
+	
+	// 检查模型是否需要走Monica代理
+	for prefix := range monicaProxyModels {
+		if strings.Contains(modelLower, prefix) {
+			logger.Info("模型需要Monica代理（Function Calling）", 
+				zap.String("model", model),
+				zap.String("matched_prefix", prefix),
+			)
+			return true
+		}
+	}
+	
+	// 其他模型（DeepSeek、Qwen、Kimi等原生大模型）直接调用
+	logger.Info("原生大模型使用直接调用模式", 
+		zap.String("model", model),
+	)
+	return false
+}
+
 // RegisterRoutes 注册 Echo 路由
 func RegisterRoutes(e *echo.Echo, cfg *config.Config) {
 	// 设置自定义错误处理器
@@ -76,12 +133,21 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			zap.Bool("request_stream", req.Stream),
 		)
 
-		// 检查是否启用了 Custom Bot 模式
-		if cfg.Monica.EnableCustomBotMode {
-			// 使用 Custom Bot Service 处理请求
+		// 根据模型类型决定使用哪个分支
+		// DeepSeek等支持直接调用的模型走普通Chat分支
+		// 需要Function Calling的模型走Custom Bot分支
+		if shouldUseCustomBot(req.Model, cfg) {
+			// 使用 Custom Bot Service 处理请求（Function Calling）
+			logger.Info("使用Custom Bot分支处理请求",
+				zap.String("model", req.Model),
+				zap.String("bot_uid", cfg.Monica.BotUID),
+			)
 			result, err = customBotService.HandleCustomBotChat(ctx, &req, cfg.Monica.BotUID)
 		} else {
-			// 使用普通的 Chat Service 处理请求
+			// 使用普通的 Chat Service 处理请求（直接调用）
+			logger.Info("使用普通Chat分支处理请求",
+				zap.String("model", req.Model),
+			)
 			result, err = chatService.HandleChatCompletion(ctx, &req)
 		}
 
