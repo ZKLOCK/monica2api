@@ -92,6 +92,10 @@ type ProxyConfig struct {
 func Load() (*Config, error) {
 	// 1. 设置默认配置
 	config := getDefaultConfig()
+	
+	// 记录默认配置
+	fmt.Printf("[CONFIG] 默认配置: enable_custom_bot_mode=%v, bot_uid=%s\n", 
+		config.Monica.EnableCustomBotMode, config.Monica.BotUID)
 
 	// 2. 尝试加载 .env 文件
 	_ = godotenv.Load()
@@ -99,11 +103,18 @@ func Load() (*Config, error) {
 	// 3. 尝试加载配置文件
 	if err := loadConfigFile(config); err != nil {
 		// 配置文件加载失败不是致命错误，继续使用环境变量和默认值
-		fmt.Printf("Warning: Failed to load config file: %v\n", err)
+		fmt.Printf("[CONFIG] Warning: Failed to load config file: %v\n", err)
+	} else {
+		fmt.Printf("[CONFIG] 配置文件加载成功: enable_custom_bot_mode=%v, bot_uid=%s\n",
+			config.Monica.EnableCustomBotMode, config.Monica.BotUID)
 	}
 
 	// 4. 环境变量覆盖
 	overrideWithEnv(config)
+	
+	// 记录环境变量覆盖后的配置
+	fmt.Printf("[CONFIG] 环境变量覆盖后: enable_custom_bot_mode=%v, bot_uid=%s, has_cookie=%v\n",
+		config.Monica.EnableCustomBotMode, config.Monica.BotUID, config.Monica.Cookie != "")
 
 	// 5. 验证配置
 	if err := config.Validate(); err != nil {
@@ -124,9 +135,9 @@ func GetDefaultConfig() *Config {
 			IdleTimeout:  60 * time.Second,
 		},
 		Monica: MonicaConfig{
-			Cookie:              "",
-			BotUID:              "",
-			EnableCustomBotMode: false,
+			Cookie:              "_monica_index_cid=daa105ed-fcde-46d8-8797-4592b56e6bff; session_id=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3Njg1NDU5MTcsImlzcyI6Im1vbmljYSIsInVzZXJfaWQiOjE4Mjg0NDUxNywidXNlcl9uYW1lIjoiXHU3OThmXHU4ZDM1XHU1MTNmIiwianRpIjoiY2UzYTk4YmI1YTU3NGNjNWI1MGQyOTEzNzJiNDdiY2YiLCJjbGllbnRfdHlwZSI6IndlYiJ9.3K4CNeDLHiI5cn6mPXrkaujMOPUd8oI282Q09_1D4MA; _fwb=2442fSPI9ZFArXvbZi3i0ar.1769675588791; wcs_bt=s_ce3bbc0e51c:1769675588; _gcl_au=1.1.328724399.1769675589; _ga=GA1.1.808839020.1769675589; _uetvid=249abe00fced11f0885a3f307325bcb6; _ga_RJYZXDEM8N=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h219274419; _ga_E249CNSDCV=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h0; _ga_JDZPETSM4F=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h0; moninca_home_theme=dark",
+			BotUID:              "gpt_5",
+			EnableCustomBotMode: true,
 		},
 		Security: SecurityConfig{
 			TLSSkipVerify:    true,

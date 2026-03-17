@@ -42,32 +42,47 @@ func shouldUseCustomBot(model string, cfg *config.Config) bool {
 		zap.String("lowercase", modelLower),
 	)
 	
+	// 首先检查是否是应该直接调用的原生大模型
+	// DeepSeek、Qwen、Kimi等原生大模型直接调用
+	directCallModels := []string{
+		"deepseek",  // 所有DeepSeek模型
+		"qwen",      // 所有Qwen模型
+		"kimi",      // Kimi模型
+	}
+	
+	for _, prefix := range directCallModels {
+		if strings.Contains(modelLower, prefix) {
+			logger.Info("原生大模型使用直接调用模式", 
+				zap.String("model", model),
+				zap.String("matched_prefix", prefix),
+				zap.String("model_lower", modelLower),
+			)
+			return false
+		}
+	}
+	
 	// 定义需要走Monica代理（Custom Bot分支）的模型
 	// 这些是需要Function Calling的模型
-	monicaProxyModels := map[string]bool{
+	monicaProxyModels := []string{
 		// GPT系列（需要Function Calling）
-		"gpt-": true,
-		"gpt4": true,
-		"gpt5": true,
+		"gpt-", "gpt4", "gpt5",
 		
 		// Claude系列（需要Function Calling）
-		"claude-": true,
+		"claude-",
 		
 		// Gemini系列（需要Function Calling）
-		"gemini-": true,
+		"gemini-",
 		
 		// OpenAI o系列（需要Function Calling）
-		"o1-": true,
-		"o3": true,
-		"o4-": true,
+		"o1-", "o3", "o4-",
 		
 		// 其他需要Function Calling的模型
-		"sonar": true,
-		"grok-": true,
+		"sonar",
+		"grok-",
 	}
 	
 	// 检查模型是否需要走Monica代理
-	for prefix := range monicaProxyModels {
+	for _, prefix := range monicaProxyModels {
 		if strings.Contains(modelLower, prefix) {
 			logger.Info("模型需要Monica代理（Function Calling）", 
 				zap.String("model", model),
@@ -78,8 +93,8 @@ func shouldUseCustomBot(model string, cfg *config.Config) bool {
 		}
 	}
 	
-	// 其他模型（DeepSeek、Qwen、Kimi等原生大模型）直接调用
-	logger.Info("原生大模型使用直接调用模式", 
+	// 默认情况下，其他模型也直接调用
+	logger.Info("未知模型使用直接调用模式", 
 		zap.String("model", model),
 		zap.String("model_lower", modelLower),
 	)
@@ -146,6 +161,8 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			zap.Int("message_count", len(req.Messages)),
 			zap.Bool("enable_custom_bot_mode", cfg.Monica.EnableCustomBotMode),
 			zap.String("default_model", cfg.Monica.DefaultModel),
+			zap.String("bot_uid", cfg.Monica.BotUID),
+			zap.Bool("has_cookie", cfg.Monica.Cookie != ""),
 		)
 		
 		// 记录消息内容（前100字符）
@@ -169,19 +186,28 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			logger.Info("使用Custom Bot分支处理请求",
 				zap.String("model", req.Model),
 				zap.String("bot_uid", cfg.Monica.BotUID),
+				zap.Bool("enable_custom_bot_mode", cfg.Monica.EnableCustomBotMode),
 			)
 			result, err = customBotService.HandleCustomBotChat(ctx, &req, cfg.Monica.BotUID)
 		} else {
 			// 使用普通的 Chat Service 处理请求（直接调用）
 			logger.Info("使用普通Chat分支处理请求",
 				zap.String("model", req.Model),
+				zap.Bool("enable_custom_bot_mode", cfg.Monica.EnableCustomBotMode),
 			)
 			result, err = chatService.HandleChatCompletion(ctx, &req)
 		}
 
 		if err != nil {
+			logger.Error("处理请求时发生错误", zap.Error(err))
 			return err
 		}
+
+		// 记录结果类型（用于调试）
+		logger.Info("请求处理完成",
+			zap.Any("result_type", fmt.Sprintf("%T", result)),
+			zap.Bool("is_openclaw", isOpenClaw),
+		)
 
 		// 根据客户端类型和请求参数决定响应方式
 		// 如果是 OpenClaw，强制使用非流式 JSON 响应
@@ -220,6 +246,10 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 			return nil
 		} else {
 			// 对于非流式请求，直接返回JSON响应
+			logger.Info("返回JSON响应",
+				zap.Any("response", result),
+				zap.Bool("is_openclaw", isOpenClaw),
+			)
 			return c.JSON(http.StatusOK, result)
 		}
 	}
