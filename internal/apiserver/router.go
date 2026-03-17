@@ -137,14 +137,29 @@ func createChatCompletionHandler(chatService service.ChatService, customBotServi
 		userAgent := c.Request().UserAgent()
 		isOpenClaw := strings.Contains(strings.ToLower(userAgent), "openclaw")
 		
-		// 记录客户端信息
-		logger.Info("客户端请求",
+		// 记录完整的请求信息（用于调试）
+		logger.Info("=== 收到客户端请求 ===",
 			zap.String("user_agent", userAgent),
 			zap.Bool("is_openclaw", isOpenClaw),
 			zap.Bool("request_stream", req.Stream),
 			zap.String("model", req.Model),
 			zap.Int("message_count", len(req.Messages)),
+			zap.Bool("enable_custom_bot_mode", cfg.Monica.EnableCustomBotMode),
+			zap.String("default_model", cfg.Monica.DefaultModel),
 		)
+		
+		// 记录消息内容（前100字符）
+		if len(req.Messages) > 0 {
+			lastMessage := req.Messages[len(req.Messages)-1]
+			contentPreview := lastMessage.Content
+			if len(contentPreview) > 100 {
+				contentPreview = contentPreview[:100] + "..."
+			}
+			logger.Info("最后一条消息预览",
+				zap.String("role", lastMessage.Role),
+				zap.String("content_preview", contentPreview),
+			)
+		}
 
 		// 根据模型类型决定使用哪个分支
 		// DeepSeek等支持直接调用的模型走普通Chat分支
