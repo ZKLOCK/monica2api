@@ -1,0 +1,41 @@
+# Monica Proxy 测试配置
+server:
+  host: "127.0.0.1"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+
+monica:
+  cookie: "_monica_index_cid=daa105ed-fcde-46d8-8797-4592b56e6bff; session_id=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3Njg1NDU5MTcsImlzcyI6Im1vbmljYSIsInVzZXJfaWQiOjE4Mjg0NDUxNywidXNlcl9uYW1lIjoiXHU3OThmXHU4ZDM1XHU1MTNmIiwianRpIjoiY2UzYTk4YmI1YTU3NGNjNWI1MGQyOTEzNzJiNDdiY2YiLCJjbGllbnRfdHlwZSI6IndlYiJ9.3K4CNeDLHiI5cn6mPXrkaujMOPUd8oI282Q09_1D4MA; _fwb=2442fSPI9ZFArXvbZi3i0ar.1769675588791; wcs_bt=s_ce3bbc0e51c:1769675588; _gcl_au=1.1.328724399.1769675589; _ga=GA1.1.808839020.1769675589; _uetvid=249abe00fced11f0885a3f307325bcb6; _ga_RJYZXDEM8N=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h219274419; _ga_E249CNSDCV=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h0; _ga_JDZPETSM4F=GS2.1.s1769675589$o1$g1$t1769675615$j34$l0$h0; moninca_home_theme=dark"  
+  bot_uid: "gpt_5"  # Monica GPT-5 bot的UID，需要确认是否正确
+  default_model: "gpt-5"  # 默认模型
+  enable_custom_bot_mode: true  # 启用Custom Bot模式
+
+security:
+  bearer_token: "d1b9422d7b6f18b863dd212a5ea699fdf7cf9e2dcbcf5a8c4630565f176949c2"  # 需要替换为真实的Bearer Token
+  tls_skip_verify: false
+  rate_limit_enabled: true
+  rate_limit_rps: 10
+  request_timeout: 60s
+
+http_client:
+  timeout: 30s
+  max_idle_conns: 100
+  max_idle_conns_per_host: 10
+  max_conns_per_host: 100
+  retry_count: 3
+  retry_wait_time: 1s
+  retry_max_wait_time: 10s
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  enable_request_log: true
+  mask_sensitive: true
+
+proxy:
+  http_proxy: "http://127.0.0.1:7890"
+  https_proxy: "https://127.0.0.1:7890"
+  no_proxy: ""
